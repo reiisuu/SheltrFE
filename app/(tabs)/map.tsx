@@ -7,16 +7,15 @@ import {
   ScrollView,
   Modal,
   Platform,
-  BackHandler,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Fonts } from '@/constants/theme';
 
 /* ------------------------------ Data ------------------------------ */
 const EVACUATION_CENTERS = [
@@ -32,6 +31,24 @@ const FLOOD_ZONES = [
   { id: 'safe_1', riskLevel: 'safe', coordinates: [[121.030,14.515],[121.032,14.518],[121.035,14.520]] },
 ];
 
+/* ----------------------------- Icon bridge ----------------------------- */
+// Use IconSymbol on iOS; Ionicons fallback on Android.
+function AppIcon({ name, size, color }) {
+  if (Platform.OS === 'ios') {
+    return <IconSymbol name={name} size={size} color={color} />;
+  }
+  const map = {
+    'chevron.left': 'chevron-back',
+    'bell.fill': 'notifications',
+    'magnifyingglass': 'search',
+    'xmark': 'close',
+    'paperplane.fill': 'send',
+    'house.fill': 'home',
+    'plus': 'add',
+  };
+  return <Ionicons name={map[name]} size={size} color={color} />;
+}
+
 /* ----------------------------- Map HTML ----------------------------- */
 const generateMapHTML = (centers, floodZones, userLocation, selectedCenter) => `<!DOCTYPE html>
 <html><head>
@@ -39,36 +56,40 @@ const generateMapHTML = (centers, floodZones, userLocation, selectedCenter) => `
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
- html,body,#map{height:100%;margin:0}
- .custom-marker{background:#0B5AA2;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.3)}
- .user-marker{background:#3B82F6;width:16px;height:16px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 4px rgba(59,130,246,.3)}
- .popup-title{font-size:14px;font-weight:700;color:#0B3D5B;margin-bottom:6px}
- .popup-info{font-size:12px;color:#6B7280}
+  html,body,#map{height:100%;margin:0}
+  .custom-marker{background:#0B5AA2;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+  .user-marker{background:#3B82F6;width:16px;height:16px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 4px rgba(59,130,246,.3)}
+  .popup-title{font-size:14px;font-weight:700;color:#0B3D5B;margin-bottom:6px}
+  .popup-info{font-size:12px;color:#6B7280}
 </style>
 </head><body>
 <div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-  const map=L.map('map',{zoomControl:false,attributionControl:false})
-    .setView([${userLocation?userLocation.lat:14.5378},${userLocation?userLocation.lng:121.0475}],14);
+  const map = L.map('map',{zoomControl:false,attributionControl:false})
+    .setView([${userLocation ? userLocation.lat : 14.5378},${userLocation ? userLocation.lng : 121.0475}],14);
+
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
 
-  const riskColors={safe:'#10B981',moderate:'#F59E0B',high:'#EF4444'};
+  const riskColors = { safe:'#10B981', moderate:'#F59E0B', high:'#EF4444' };
   (${JSON.stringify(floodZones)}).forEach(z=>{
-    const latlngs=z.coordinates.map(c=>[c[1],c[0]]);
+    const latlngs = z.coordinates.map(c=>[c[1],c[0]]);
     L.polyline(latlngs,{color:riskColors[z.riskLevel],weight:8,opacity:.7,lineCap:'round'}).addTo(map);
   });
 
   (${JSON.stringify(centers)}).forEach(c=>{
-    const m=L.marker([c.latitude,c.longitude],{icon:L.divIcon({className:'custom-marker',html:'🏠',iconSize:[36,36],iconAnchor:[18,18]})}).addTo(map);
+    const m=L.marker([c.latitude,c.longitude],{
+      icon:L.divIcon({className:'custom-marker',html:'🏠',iconSize:[36,36],iconAnchor:[18,18]})
+    }).addTo(map);
     m.bindPopup('<div class="popup-title">'+c.name+'</div><div class="popup-info">Capacity: '+(c.capacity||'N/A')+' people</div>');
     m.on('click',()=>window.ReactNativeWebView.postMessage(JSON.stringify({type:'centerSelected',center:c})));
   });
 
-  ${userLocation?`L.marker([${userLocation.lat},${userLocation.lng}],{icon:L.divIcon({className:'user-marker',iconSize:[16,16],iconAnchor:[8,8]})}).addTo(map);`:''}
-  ${selectedCenter&&userLocation?`L.polyline([[${userLocation.lat},${userLocation.lng}],[${selectedCenter.latitude},${selectedCenter.longitude}]],{color:'#0B5AA2',weight:4,opacity:.9,dashArray:'10, 10'}).addTo(map);`:''}
+  ${userLocation ? `L.marker([${userLocation.lat},${userLocation.lng}],{icon:L.divIcon({className:'user-marker',iconSize:[16,16],iconAnchor:[8,8]})}).addTo(map);` : ''}
 
-  window.fromRN=function(d){
+  ${selectedCenter && userLocation ? `L.polyline([[${userLocation.lat},${userLocation.lng}],[${selectedCenter.latitude},${selectedCenter.longitude}]],{color:'#0B5AA2',weight:4,opacity:.9,dashArray:'10, 10'}).addTo(map);` : ''}
+
+  window.fromRN = function(d){
     if(d.type==='zoomIn') map.zoomIn();
     if(d.type==='zoomOut') map.zoomOut();
     if(d.type==='centerMap' && d.lat && d.lng) map.setView([d.lat,d.lng],d.zoom||15,{animate:true});
@@ -96,7 +117,6 @@ export default function MapScreen() {
   const [selectedCenter, setSelectedCenter] = useState(null);
   const [showLegend, setShowLegend] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
-
   const [query, setQuery] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
 
@@ -137,40 +157,69 @@ export default function MapScreen() {
         domStorageEnabled
         originWhitelist={['*']}
         scrollEnabled={false}
+        onMessage={(e) => {
+          try {
+            const msg = JSON.parse(e.nativeEvent.data);
+            if (msg.type === 'centerSelected' && msg.center) setSelectedCenter(msg.center);
+          } catch {}
+        }}
       />
 
       {/* --- Top Row --- */}
       <View style={[styles.topRow, { top: insets.top + 8 }]}>
-        <Pressable onPress={() => router.back()} style={styles.iconBtn}>
-          <IconSymbol name="chevron.left" size={20} color="#0B3D5B" />
+        {/* Back */}
+        <Pressable
+          onPress={() => router.back()}
+          style={styles.iconBtn}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <AppIcon name="chevron.left" size={20} color="#0B3D5B" />
         </Pressable>
 
-        {/* ✅ Evacuation Centers Button (opens modal) */}
-        <Pressable style={styles.pillButton} onPress={() => setShowSearchModal(true)}>
-          <IconSymbol name="mappin.and.ellipse" size={16} color="#0B5AA2" />
+        {/* Evacuation Centers button */}
+        <Pressable
+          style={styles.pillButton}
+          onPress={() => setShowSearchModal(true)}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Open evacuation centers"
+        >
+          <AppIcon name="mappin.and.ellipse" size={16} color="#0B5AA2" />
           <ThemedText style={styles.pillText}>Evacuation Centers</ThemedText>
         </Pressable>
 
-        <Pressable onPress={() => router.push('/notifications')} style={styles.iconBtn}>
-          <IconSymbol name="bell.fill" size={18} color="#0B3D5B" />
-          <View style={styles.badge}><ThemedText style={styles.badgeText}>2</ThemedText></View>
+        {/* Notifications (routes to /notifications) */}
+        <Pressable
+          onPress={() => router.push('/notifications')}
+          style={styles.iconBtn}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Open notifications"
+        >
+          <AppIcon name="bell.fill" size={18} color="#0B3D5B" />
+          <View style={styles.badge}>
+            <ThemedText style={styles.badgeText}>2</ThemedText>
+          </View>
         </Pressable>
       </View>
 
-      {/* --- Search Bar (with live suggestions) --- */}
+      {/* --- Search Bar & Suggestions --- */}
       <View style={[styles.searchOverlay, { top: insets.top + 58 }]}>
         <View style={styles.searchBox}>
-          <IconSymbol name="magnifyingglass" size={18} color="#64748B" />
+          <AppIcon name="magnifyingglass" size={18} color="#64748B" />
           <TextInput
             value={query}
             onChangeText={(t) => { setQuery(t); setShowSuggestions(true); }}
             placeholder="Search place or center"
             placeholderTextColor="#94A3B8"
             style={styles.searchInput}
+            accessibilityLabel="Search places or centers"
           />
           {query.length > 0 && (
-            <Pressable onPress={() => setQuery('')}>
-              <IconSymbol name="xmark" size={18} color="#64748B" />
+            <Pressable onPress={() => setQuery('')} hitSlop={8} accessibilityLabel="Clear search">
+              <AppIcon name="xmark" size={18} color="#64748B" />
             </Pressable>
           )}
         </View>
@@ -193,7 +242,7 @@ export default function MapScreen() {
                     setQuery(c.name);
                   }}
                 >
-                  <IconSymbol name="paperplane.fill" size={16} color="#0B5AA2" />
+                  <AppIcon name="paperplane.fill" size={16} color="#0B5AA2" />
                   <ThemedText style={styles.suggestionText}>{c.name}</ThemedText>
                 </Pressable>
               ))}
@@ -202,12 +251,17 @@ export default function MapScreen() {
         )}
       </View>
 
-      {/* ✅ Evacuation Centers Modal */}
-      <Modal visible={showSearchModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowSearchModal(false)}>
+      {/* --- Evacuation Centers Modal --- */}
+      <Modal
+        visible={showSearchModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowSearchModal(false)}
+      >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Pressable onPress={() => setShowSearchModal(false)} style={{ marginRight: 12 }}>
-              <IconSymbol name="chevron.left" size={24} color="#1a1a1a" />
+            <Pressable onPress={() => setShowSearchModal(false)} style={{ marginRight: 12 }} hitSlop={8}>
+              <AppIcon name="chevron.left" size={24} color="#1a1a1a" />
             </Pressable>
             <ThemedText style={styles.modalTitle}>Evacuation Centers</ThemedText>
           </View>
@@ -223,7 +277,7 @@ export default function MapScreen() {
                   setShowSearchModal(false);
                 }}
               >
-                <IconSymbol name="house.fill" size={20} color="#0B5AA2" />
+                <AppIcon name="house.fill" size={20} color="#0B5AA2" />
                 <View style={{ marginLeft: 10 }}>
                   <ThemedText style={styles.modalItemText}>{center.name}</ThemedText>
                   <ThemedText style={styles.modalItemSub}>{center.capacity} capacity</ThemedText>
@@ -235,10 +289,10 @@ export default function MapScreen() {
       </Modal>
 
       {/* --- Legend --- */}
-      <Pressable style={styles.legendContainer} onPress={toggleLegend}>
+      <Pressable style={styles.legendContainer} onPress={toggleLegend} accessibilityLabel="Toggle flood legend">
         <View style={styles.legendHeader}>
           <ThemedText style={styles.legendTitle}>Flood Legend</ThemedText>
-          <IconSymbol name={showLegend ? 'xmark' : 'plus'} size={20} color="#1a1a1a" />
+          <AppIcon name={showLegend ? 'xmark' : 'plus'} size={20} color="#1a1a1a" />
         </View>
         {showLegend && (
           <View style={styles.legendContent}>
@@ -251,10 +305,10 @@ export default function MapScreen() {
 
       {/* --- Zoom --- */}
       <View style={styles.mapControls}>
-        <Pressable style={styles.iconBtn} onPress={handleZoomIn}>
+        <Pressable style={styles.iconBtn} onPress={handleZoomIn} hitSlop={8} accessibilityLabel="Zoom in">
           <ThemedText style={styles.controlText}>+</ThemedText>
         </Pressable>
-        <Pressable style={[styles.iconBtn, { marginTop: 8 }]} onPress={handleZoomOut}>
+        <Pressable style={[styles.iconBtn, { marginTop: 8 }]} onPress={handleZoomOut} hitSlop={8} accessibilityLabel="Zoom out">
           <ThemedText style={styles.controlText}>−</ThemedText>
         </Pressable>
       </View>
@@ -264,6 +318,7 @@ export default function MapScreen() {
 
 /* ----------------------------- Styles ----------------------------- */
 const OUTLINE = '#E6EEF5';
+
 const SOFT_SHADOW = {
   shadowColor: '#000',
   shadowOffset: { width: 0, height: 6 },
@@ -285,46 +340,105 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+
   iconBtn: {
-    width: 42, height: 42, borderRadius: 21, backgroundColor: '#FFF',
-    borderWidth: 1, borderColor: OUTLINE, alignItems: 'center', justifyContent: 'center', ...SOFT_SHADOW,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: OUTLINE,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...SOFT_SHADOW,
   },
+
   pillButton: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingVertical: 9, paddingHorizontal: 14, borderRadius: 999,
-    backgroundColor: '#FFF', borderWidth: 1, borderColor: OUTLINE, ...SOFT_SHADOW,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: OUTLINE,
+    ...SOFT_SHADOW,
   },
+
   pillText: { fontSize: 14, fontWeight: '700', color: '#0B5AA2' },
+
   badge: {
-    position: 'absolute', top: -2, right: -2, minWidth: 18, height: 18,
-    borderRadius: 9, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3,
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
   },
   badgeText: { fontSize: 10, color: '#fff', fontWeight: '700' },
 
   searchOverlay: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 25 },
   searchBox: {
-    width: '86%', maxWidth: 520, flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#FFF', borderWidth: 1, borderColor: OUTLINE,
-    borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, ...SOFT_SHADOW,
+    width: '86%',
+    maxWidth: 520,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: OUTLINE,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    ...SOFT_SHADOW,
   },
   searchInput: { flex: 1, marginHorizontal: 8, fontSize: 14, color: '#0f172a' },
 
   suggestionsCard: {
-    width: '86%', maxWidth: 520, marginTop: 8, backgroundColor: '#FFFFFF',
-    borderRadius: 12, borderWidth: 1, borderColor: OUTLINE, maxHeight: 210, ...SOFT_SHADOW,
+    width: '86%',
+    maxWidth: 520,
+    marginTop: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: OUTLINE,
+    maxHeight: 210,
+    ...SOFT_SHADOW,
   },
-  suggestionRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  suggestionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
   suggestionRowEmpty: { padding: 10, alignItems: 'center' },
   suggestionText: { color: '#0f172a' },
 
   modalContainer: { flex: 1, backgroundColor: '#FFFFFF' },
   modalHeader: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingTop: Platform.OS === 'ios' ? 60 : 16,
-    paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#E5E7EB',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 60 : 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
   },
   modalTitle: { fontSize: 18, fontWeight: '700', color: '#1a1a1a' },
-  modalItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  modalItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
   modalItemText: { fontSize: 15, fontWeight: '600', color: '#1a1a1a' },
   modalItemSub: { fontSize: 13, color: '#6B7280', marginTop: 2 },
 
@@ -332,9 +446,16 @@ const styles = StyleSheet.create({
   controlText: { fontSize: 20, fontWeight: '700', color: '#0B5AA2', lineHeight: 20 },
 
   legendContainer: {
-    position: 'absolute', bottom: 100, left: 12,
-    backgroundColor: '#FFF', borderRadius: 12, padding: 12,
-    borderWidth: 1, borderColor: OUTLINE, ...SOFT_SHADOW, minWidth: 160,
+    position: 'absolute',
+    bottom: 100,
+    left: 12,
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: OUTLINE,
+    ...SOFT_SHADOW,
+    minWidth: 160,
   },
   legendHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   legendTitle: { fontSize: 14, fontWeight: '700', color: '#1a1a1a' },
