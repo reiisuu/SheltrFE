@@ -9,28 +9,21 @@ import {
   StatusBar as RNStatusBar,
   ScrollView,
   Platform,
-  Modal,
-  Dimensions, // ⬅️ for compact layout
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
 import * as SystemUI from 'expo-system-ui';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 
-/* ----------------- Types ----------------- */
-type CurrentWX = {
-  temperature: number | null;
-  humidity: number | null;
-  precipitation: number | null;
-};
-
-/* ----------------- Map (Leaflet) ----------------- */
-function makeMapHTML(user: { lat: number; lon: number } | null) {
+/* ----------------- Map HTML ----------------- */
+function makeMapHTML(user) {
   const lat = user?.lat ?? 14.5995;
   const lon = user?.lon ?? 120.9842;
   return `<!DOCTYPE html><html><head>
@@ -61,13 +54,11 @@ function makeMapHTML(user: { lat: number; lon: number } | null) {
 
 /* ----------------- Constants ----------------- */
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-const COMPACT = SCREEN_HEIGHT < 700; // ⬅️ phones with short vertical space
+const COMPACT = SCREEN_HEIGHT < 700;
 
 const BORDER = '#EAF0F6';
 const HEADER_BORDER = '#DDEAF7';
 const ICON_COLOR = '#0B3D5B';
-
-/** Keep content above the floating tab bar. */
 const TABBAR_HEIGHT = 30;
 const TABBAR_BOTTOM_MARGIN = 5;
 const EXTRA_CUSHION = 1;
@@ -75,99 +66,51 @@ const BOTTOM_CLEARANCE = TABBAR_HEIGHT + TABBAR_BOTTOM_MARGIN + EXTRA_CUSHION;
 
 /* ----------------- Header ----------------- */
 function HeaderCard() {
+  const router = useRouter();
   const [notifCount] = useState(2);
-  const [showNotif, setShowNotif] = useState(false);
 
   return (
     <ThemedView
       style={[
         styles.headerCard,
-        COMPACT && { marginTop: 6, paddingVertical: 10, paddingHorizontal: 12 }, // ⬅️ tighter top
+        COMPACT && { marginTop: 6, paddingVertical: 10, paddingHorizontal: 12 },
       ]}
     >
       <View style={styles.headerRow}>
+        {/* Logo */}
         <Image
           source={require('../../assets/images/Sheltr.png')}
-          style={[styles.logo, COMPACT && { height: 28 }]} // ⬅️ slightly smaller
+          style={[styles.logo, COMPACT && { height: 28 }]}
           resizeMode="contain"
         />
 
+        {/* Notifications (routes to /notifications) */}
         <Pressable
-          onPress={() => setShowNotif(true)}
-          accessibilityRole="button"
-          accessibilityLabel="Notifications"
+          onPress={() => router.push('/notifications')}
+          style={styles.iconBtn}
           hitSlop={8}
-          style={[styles.notifButton, COMPACT && { width: 34, height: 34 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Open notifications"
         >
           {Platform.OS === 'ios' ? (
-            <IconSymbol name="bell.fill" size={20} color={ICON_COLOR} />
+            <IconSymbol name="bell.fill" size={18} color="#0B3D5B" />
           ) : (
-            <Ionicons name="notifications" size={22} color={ICON_COLOR} />
+            <Ionicons name="notifications" size={20} color="#0B3D5B" />
           )}
-
-          {notifCount > 0 && (
-            <View style={styles.notifBadge}>
-              <ThemedText style={styles.notifBadgeText}>{notifCount}</ThemedText>
-            </View>
-          )}
+          <View style={styles.badge}>
+            <ThemedText style={styles.badgeText}>{notifCount}</ThemedText>
+          </View>
         </Pressable>
       </View>
-
-      <Modal
-        visible={showNotif}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowNotif(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.notifModal}>
-            <View style={styles.modalHeader}>
-              <ThemedText style={styles.modalTitle}>Notifications</ThemedText>
-              <Pressable onPress={() => setShowNotif(false)}>
-                <Ionicons name="close-circle" size={22} color="#64748B" />
-              </Pressable>
-            </View>
-
-            <View style={styles.modalItem}>
-              <Ionicons name="rainy" size={18} color={ICON_COLOR} />
-              <ThemedText style={styles.modalItemText}>
-                Light rain expected this afternoon.
-              </ThemedText>
-            </View>
-
-            <View style={styles.modalItem}>
-              <Ionicons name="location" size={18} color={ICON_COLOR} />
-              <ThemedText style={styles.modalItemText}>
-                New shelter opened nearby.
-              </ThemedText>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </ThemedView>
   );
 }
 
 /* ----------------- Weather Card ----------------- */
-function WeatherCard({
-  dateTime,
-  temp,
-  humidity,
-  rain,
-  loading,
-}: {
-  dateTime: string;
-  temp: number | string;
-  humidity: string;
-  rain: string;
-  loading: boolean;
-}) {
+function WeatherCard({ dateTime, temp, humidity, rain, loading }) {
   return (
     <ThemedView
-      style={[
-        styles.card,
-        COMPACT && { marginTop: 10, paddingVertical: 16 }, // ⬅️ tighter near top
-      ]}
+      style={[styles.card, COMPACT && { marginTop: 10, paddingVertical: 16 }]}
     >
       <ThemedText style={[styles.sectionLabel, COMPACT && { marginBottom: 8 }]}>
         Weather Update
@@ -178,15 +121,33 @@ function WeatherCard({
         <ThemedText style={styles.metricText}>{dateTime}</ThemedText>
       </View>
 
-      <View style={[styles.tempRow, COMPACT && { marginVertical: 6, minHeight: 52 }]}>
-        <Ionicons name="thermometer" size={26} color={ICON_COLOR} style={[styles.tempIcon, COMPACT && { marginBottom: 4 }]} />
-        <ThemedText style={[styles.tempText, COMPACT && { fontSize: 42, lineHeight: 46 }]}>
+      <View
+        style={[
+          styles.tempRow,
+          COMPACT && { marginVertical: 6, minHeight: 52 },
+        ]}
+      >
+        <Ionicons
+          name="thermometer"
+          size={26}
+          color={ICON_COLOR}
+          style={[styles.tempIcon, COMPACT && { marginBottom: 4 }]}
+        />
+        <ThemedText
+          style={[styles.tempText, COMPACT && { fontSize: 42, lineHeight: 46 }]}
+        >
           {typeof temp === 'number' ? Math.round(temp) : temp}°C
         </ThemedText>
       </View>
 
       <View style={styles.row}>
-        <View style={[styles.smallCard, { marginRight: 12 }, COMPACT && { padding: 10 }]}>
+        <View
+          style={[
+            styles.smallCard,
+            { marginRight: 12 },
+            COMPACT && { padding: 10 },
+          ]}
+        >
           <Ionicons name="water" size={18} color={ICON_COLOR} />
           <View style={{ marginLeft: 8 }}>
             <ThemedText style={styles.miniLabel}>Humidity</ThemedText>
@@ -214,9 +175,9 @@ function WeatherCard({
 
 /* ----------------- Main Screen ----------------- */
 export default function HomeScreen() {
-  const webRef = useRef<WebView>(null);
-  const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
-  const [wx, setWx] = useState<CurrentWX>({
+  const webRef = useRef(null);
+  const [coords, setCoords] = useState(null);
+  const [wx, setWx] = useState({
     temperature: null,
     humidity: null,
     precipitation: null,
@@ -267,7 +228,8 @@ export default function HomeScreen() {
     minute: '2-digit',
   });
 
-  const topSpacer = Platform.OS === 'android' ? (RNStatusBar.currentHeight ?? 0) + 4 : 6;
+  const topSpacer =
+    Platform.OS === 'android' ? (RNStatusBar.currentHeight ?? 0) + 4 : 6;
 
   const handleCenterToMe = () => {
     if (coords && webRef.current) {
@@ -289,7 +251,7 @@ export default function HomeScreen() {
           styles.scrollContent,
           {
             paddingTop: topSpacer,
-            paddingBottom: BOTTOM_CLEARANCE, // keep above tab bar
+            paddingBottom: BOTTOM_CLEARANCE,
           },
         ]}
         bounces={false}
@@ -308,10 +270,12 @@ export default function HomeScreen() {
         <ThemedView
           style={[
             styles.card,
-            { marginBottom: 10, paddingVertical: COMPACT ? 16 : 20 }, // ⬅️ slightly tighter
+            { marginBottom: 10, paddingVertical: COMPACT ? 16 : 20 },
           ]}
         >
-          <ThemedText style={[styles.sectionLabel, COMPACT && { marginBottom: 8 }]}>
+          <ThemedText
+            style={[styles.sectionLabel, COMPACT && { marginBottom: 8 }]}
+          >
             Live User Map
           </ThemedText>
 
@@ -319,7 +283,7 @@ export default function HomeScreen() {
             <WebView
               ref={webRef}
               source={{ html: makeMapHTML(coords) }}
-              style={[styles.map, { height: COMPACT ? 280 : 320 }]} // ⬅️ smaller map on compact screens
+              style={[styles.map, { height: COMPACT ? 280 : 320 }]}
               originWhitelist={['*']}
               javaScriptEnabled
               domStorageEnabled
@@ -328,13 +292,15 @@ export default function HomeScreen() {
             />
           </View>
 
-          <Pressable onPress={handleCenterToMe} style={[styles.centerButton, { marginTop: 10 }]}>
+          <Pressable
+            onPress={handleCenterToMe}
+            style={[styles.centerButton, { marginTop: 10 }]}
+          >
             <Ionicons name="navigate" size={16} color="#ffffff" />
             <ThemedText style={styles.centerButtonText}>Center to Me</ThemedText>
           </Pressable>
         </ThemedView>
 
-        {/* Final tiny spacer so nothing hugs the tab bar visually */}
         <View style={{ height: 6 }} />
       </ScrollView>
     </SafeAreaView>
@@ -363,53 +329,30 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   logo: { width: 120, height: 32 },
-  notifButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#FFFFFF',
+
+  iconBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#FFF',
     borderWidth: 1,
     borderColor: HEADER_BORDER,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  notifBadge: {
+  badge: {
     position: 'absolute',
-    top: -4,
-    right: -4,
+    top: -2,
+    right: -2,
     minWidth: 18,
     height: 18,
-    paddingHorizontal: 4,
     borderRadius: 9,
     backgroundColor: '#EF4444',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
+    paddingHorizontal: 3,
   },
-  notifBadgeText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
-
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  notifModal: {
-    backgroundColor: '#FFFFFF',
-    width: '80%',
-    borderRadius: 16,
-    padding: 16,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: ICON_COLOR },
-  modalItem: { flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 6 },
-  modalItemText: { color: '#1E293B', fontSize: 14, fontWeight: '500' },
+  badgeText: { fontSize: 10, color: '#fff', fontWeight: '700' },
 
   card: {
     marginHorizontal: 16,
@@ -420,7 +363,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderWidth: 1,
     borderColor: BORDER,
-    paddingBottom: 19,
   },
   sectionLabel: {
     fontSize: 12,
@@ -438,7 +380,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'flex-end',
     marginVertical: 10,
-    minHeight: 60,
   },
   tempIcon: { marginRight: 6, marginBottom: 6 },
   tempText: {
@@ -447,7 +388,6 @@ const styles = StyleSheet.create({
     color: '#0B3D5B',
     lineHeight: 54,
   },
-
   row: { flexDirection: 'row' },
   smallCard: {
     flex: 1,
@@ -463,7 +403,7 @@ const styles = StyleSheet.create({
   miniValue: { fontSize: 16, fontWeight: '800', color: '#0B3D5B' },
 
   mapWrap: {
-    marginTop: 5, // ⬅️ a bit tighter
+    marginTop: 5,
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,

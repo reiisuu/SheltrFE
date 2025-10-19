@@ -8,12 +8,11 @@ export const unstable_settings = {
   anchor: "(tabs)",
 };
 
-// Custom light & dark themes
 const MyLightTheme = {
   ...DefaultTheme,
   colors: {
     ...DefaultTheme.colors,
-    background: "#f2f2f2", 
+    background: "#f2f2f2",
     primary: "#0c2d48",
   },
 };
@@ -22,8 +21,8 @@ const MyDarkTheme = {
   ...DarkTheme,
   colors: {
     ...DarkTheme.colors,
-    background: "#000814", 
-    primary: "#3a86ff", 
+    background: "#000814",
+    primary: "#3a86ff",
   },
 };
 
@@ -32,9 +31,18 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={colorScheme === "dark" ? MyDarkTheme : MyLightTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: "modal", title: "Modal" }} />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(tabs)" />
+        {/* Notifications is a normal push (no modal) */}
+        <Stack.Screen
+          name="notifications"
+          options={{ presentation: "card" }}
+        />
+        {/* keep your modal route if you still use it elsewhere */}
+        <Stack.Screen
+          name="modal"
+          options={{ presentation: "modal", title: "Modal", headerShown: true }}
+        />
       </Stack>
 
       <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
