@@ -17,34 +17,49 @@ import { Ionicons } from '@expo/vector-icons';
 import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 
-/* ------------ Icon bridge (same pattern as map.jsx) ------------ */
-function AppIcon({ name, size, color }) {
+/* --------- Cross-platform icon wrapper (iOS: SF Symbols, Android: Ionicons) --------- */
+type AppIconProps = { name: string; size?: number; color?: string };
+function AppIcon({ name, size = 18, color = '#000' }: AppIconProps) {
   if (Platform.OS === 'ios') {
-    return <IconSymbol name={name} size={size} color={color} />;
+    return <IconSymbol name={name as any} size={size as any} color={color as any} />;
   }
-  const map = {
+  const map: Record<string, string> = {
     'chevron.left': 'chevron-back',
-    'ellipsis': 'ellipsis-vertical',
+    ellipsis: 'ellipsis-vertical',
     'checkmark.circle.fill': 'checkmark-circle',
     'trash.fill': 'trash',
+    checkmark: 'checkmark',
+    'exclamationmark.triangle.fill': 'warning',
   };
-  return <Ionicons name={map[name] || name} size={size} color={color} />;
+  return <Ionicons name={(map[name] || 'ellipse') as any} size={size as any} color={color as any} />;
 }
 
 /* ---------------------------- Seed data ---------------------------- */
 const seed = [
-  { id: '1', title: 'Heavy Rain Warning', body: 'Possible flooding in low-lying areas. Avoid unnecessary travel.', timeAgo: '31 minutes ago', severity: 'warning', read: false },
-  { id: '2', title: 'Evacuate Immediately', body: 'Floodwaters rising in your area. Head to the nearest evacuation center now.', timeAgo: '3 weeks ago', severity: 'danger', read: false },
+  {
+    id: '1',
+    title: 'Heavy Rain Warning',
+    body: 'Possible flooding in low-lying areas. Avoid unnecessary travel.',
+    timeAgo: '31 minutes ago',
+    severity: 'warning',
+    read: false,
+  },
+  {
+    id: '2',
+    title: 'Evacuate Immediately',
+    body: 'Floodwaters rising in your area. Head to the nearest evacuation center now.',
+    timeAgo: '3 weeks ago',
+    severity: 'danger',
+    read: false,
+  },
 ];
 
 /* Keep content above your floating tab bar */
-const TABBAR_HEIGHT = 30;
-const TABBAR_BOTTOM_MARGIN = 5;
-const EXTRA_CUSHION = 1;
-const BOTTOM_CLEARANCE = TABBAR_HEIGHT + TABBAR_BOTTOM_MARGIN + EXTRA_CUSHION;
-
+const TABBAR_CLEARANCE = 100;
 const OUTLINE = '#E6EEF5';
 const ICON_COLOR = '#0B3D5B';
+const ACCENT_BLUE = '#0B5AA2';
+const NEUTRAL = '#64748B';
 
 export default function NotificationsScreen() {
   const router = useRouter();
@@ -56,23 +71,26 @@ export default function NotificationsScreen() {
     navigation.setOptions({ headerShown: false });
   }, [navigation]);
 
-  const [items, setItems] = useState(seed);
-  const [menu, setMenu] = useState({ open: false, id: null });
+  type Notification = typeof seed[number];
+  type SelectedMap = { [id: string]: boolean };
+  const [items, setItems] = useState<Notification[]>(seed);
+  const [menu, setMenu] = useState<{ open: boolean; id: string | null }>({ open: false, id: null });
 
   // Multiselect
-  const [selectMode, setSelectMode] = useState(false);
-  const [selected, setSelected] = useState({}); // { [id]: true }
+  const [selectMode, setSelectMode] = useState<boolean>(false);
+  const [selected, setSelected] = useState<SelectedMap>({}); // { [id]: true }
 
-  const openMenu = (id) => setMenu({ open: true, id });
+  const openMenu = (id: string) => setMenu({ open: true, id });
   const closeMenu = () => setMenu({ open: false, id: null });
 
   // Single-item actions
-  const markAsRead = (id) => {
+  const markAsRead = (id: string | null) => {
     if (!id) return;
     setItems((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
     closeMenu();
   };
-  const deleteItem = (id) => {
+
+  const deleteItem = (id: string | null) => {
     if (!id) return;
     Alert.alert('Delete notification?', 'This cannot be undone.', [
       { text: 'Cancel', style: 'cancel' },
@@ -86,13 +104,14 @@ export default function NotificationsScreen() {
       },
     ]);
   };
-  const toggleRead = (id) => {
+
+  const toggleRead = (id: string) => {
     setItems((prev) => prev.map((n) => (n.id === id ? { ...n, read: !n.read } : n)));
   };
 
   // Multi-select helpers
-  const isSelected = (id) => !!selected[id];
-  const toggleSelected = (id) => setSelected((p) => ({ ...p, [id]: !p[id] }));
+  const isSelected = (id: string) => !!selected[id];
+  const toggleSelected = (id: string) => setSelected((p) => ({ ...p, [id]: !p[id] }));
   const clearSelection = () => setSelected({});
   const selectedIds = useMemo(() => Object.keys(selected).filter((k) => selected[k]), [selected]);
 
@@ -119,8 +138,8 @@ export default function NotificationsScreen() {
     ]);
   };
 
-  const renderSeverityIcon = (sev) => {
-    const color = sev === 'danger' ? '#EF4444' : '#F59E0B';
+  const renderSeverityIcon = (sev: string) => {
+    const color = sev === 'danger' ? ACCENT_BLUE : '#F59E0B';
     return (
       <View
         style={[
@@ -128,13 +147,13 @@ export default function NotificationsScreen() {
           { backgroundColor: color + '1A', borderColor: color + '33' },
         ]}
       >
-        <IconSymbol name="exclamationmark.triangle.fill" size={18} color={color} />
+        <AppIcon name="exclamationmark.triangle.fill" size={18} color={color} />
       </View>
     );
   };
 
-  const renderItem = ({ item }) => {
-    const selectedStyle = selectMode && isSelected(item.id) ? { borderColor: '#0B5AA2' } : null;
+  const renderItem = ({ item }: { item: Notification }) => {
+    const selectedStyle = selectMode && isSelected(item.id) ? { borderColor: ACCENT_BLUE } : null;
 
     return (
       <Pressable
@@ -148,7 +167,7 @@ export default function NotificationsScreen() {
         <View style={styles.cardHeader}>
           {selectMode ? (
             <View style={[styles.checkbox, isSelected(item.id) && styles.checkboxChecked]}>
-              {isSelected(item.id) && <IconSymbol name="checkmark" size={12} color="#FFFFFF" />}
+              {isSelected(item.id) && <AppIcon name="checkmark" size={12} color="#FFFFFF" />}
             </View>
           ) : (
             renderSeverityIcon(item.severity)
@@ -177,11 +196,14 @@ export default function NotificationsScreen() {
     );
   };
 
+  // Reserve only for the fixed top row (never changes)
+  const HEADER_RESERVED = insets.top + 56;
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* Top row (same visual style as map.jsx) */}
+      {/* Top row (same style as map.jsx) */}
       <View style={[styles.topRow, { top: insets.top + 8 }]}>
         <Pressable onPress={() => router.back()} style={styles.iconBtn} hitSlop={8}>
           <AppIcon name="chevron.left" size={20} color={ICON_COLOR} />
@@ -201,46 +223,50 @@ export default function NotificationsScreen() {
         </Pressable>
       </View>
 
-      {/* Spacer under header / bulk bar */}
-      {selectMode ? (
-        <View style={[styles.bulkBar, { marginTop: insets.top + 56 }]}>
-          <Pressable style={[styles.bulkBtn, styles.bulkPrimary]} onPress={markSelectedRead}>
-            <IconSymbol name="checkmark.circle.fill" size={16} color="#FFFFFF" />
-            <ThemedText style={styles.bulkPrimaryText}>Mark as read</ThemedText>
-          </Pressable>
-          <Pressable style={[styles.bulkBtn, styles.bulkDanger]} onPress={deleteSelected}>
-            <IconSymbol name="trash.fill" size={16} color="#FFFFFF" />
-            <ThemedText style={styles.bulkDangerText}>Delete</ThemedText>
-          </Pressable>
-        </View>
-      ) : (
-        <View style={{ height: insets.top + 56 }} />
-      )}
+      {/* Spacer under the fixed header (constant height, no jumps) */}
+      <View style={{ height: HEADER_RESERVED }} />
 
       <FlatList
         data={items}
         keyExtractor={(i) => i.id}
         renderItem={renderItem}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingBottom: TABBAR_CLEARANCE + 60 },
+        ]}
         showsVerticalScrollIndicator={false}
         extraData={{ selectMode, selected }}
-        ListFooterComponent={<View style={{ height: BOTTOM_CLEARANCE }} />}
+        ListFooterComponent={<View style={{ height: 0 }} />}
       />
 
-      {/* Context Menu (no dark backdrop) */}
+      {/* Bottom fixed bulk bar (appears over content; doesn't reflow the list) */}
+      {selectMode && (
+        <View style={[styles.bulkBarBottom, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+          <Pressable style={[styles.bulkBtn, styles.bulkPrimary]} onPress={markSelectedRead}>
+            <AppIcon name="checkmark.circle.fill" size={16} color="#FFFFFF" />
+            <ThemedText style={styles.bulkPrimaryText}>Mark as read</ThemedText>
+          </Pressable>
+          <Pressable style={[styles.bulkBtn, styles.bulkNeutral]} onPress={deleteSelected}>
+            <AppIcon name="trash.fill" size={16} color="#FFFFFF" />
+            <ThemedText style={styles.bulkNeutralText}>Delete</ThemedText>
+          </Pressable>
+        </View>
+      )}
+
+      {/* Context Menu (no dim overlay) */}
       <Modal visible={menu.open} transparent animationType="none" onRequestClose={closeMenu}>
         <View style={styles.menuContainer}>
           <View style={styles.menuCard}>
             <Pressable style={styles.menuItem} onPress={() => markAsRead(menu.id)}>
-              <AppIcon name="checkmark.circle.fill" size={16} color="#0B5AA2" />
+              <AppIcon name="checkmark.circle.fill" size={16} color={ACCENT_BLUE} />
               <ThemedText style={styles.menuText}>Mark as read</ThemedText>
             </Pressable>
             <Pressable
               style={[styles.menuItem, { borderTopWidth: 1, borderTopColor: '#E5E7EB' }]}
               onPress={() => deleteItem(menu.id)}
             >
-              <AppIcon name="trash.fill" size={16} color="#EF4444" />
-              <ThemedText style={[styles.menuText, { color: '#EF4444' }]}>Delete</ThemedText>
+              <AppIcon name="trash.fill" size={16} color={NEUTRAL} />
+              <ThemedText style={[styles.menuText, { color: NEUTRAL }]}>Delete</ThemedText>
             </Pressable>
           </View>
         </View>
@@ -299,30 +325,8 @@ const styles = StyleSheet.create({
   },
   editPillText: { fontSize: 13, fontWeight: '800', color: ICON_COLOR },
 
-  /* Bulk bar */
-  bulkBar: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    zIndex: 10,
-  },
-  bulkBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-    marginHorizontal: 5,
-  },
-  bulkPrimary: { backgroundColor: '#0B5AA2' },
-  bulkDanger: { backgroundColor: '#EF4444' },
-  bulkPrimaryText: { color: '#FFFFFF', fontWeight: '800' },
-  bulkDangerText: { color: '#FFFFFF', fontWeight: '800' },
-
-  listContent: { paddingHorizontal: 16, paddingBottom: 24 },
+  /* List */
+  listContent: { paddingHorizontal: 16 },
 
   card: {
     backgroundColor: '#FFFFFF',
@@ -358,11 +362,41 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginRight: 12,
   },
-  checkboxChecked: { backgroundColor: '#0B5AA2', borderColor: '#0B5AA2' },
+  checkboxChecked: { backgroundColor: ACCENT_BLUE, borderColor: ACCENT_BLUE },
 
   cardTitle: { fontSize: 16, fontWeight: '800', color: '#0B3D5B', marginBottom: 4 },
   cardBody: { color: '#475569', fontSize: 14, lineHeight: 18 },
   cardTime: { marginTop: 6, fontSize: 12, color: '#9CA3AF' },
+
+  /* Bottom bulk bar (fixed) */
+  bulkBarBottom: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    bottom: TABBAR_CLEARANCE, // sits above your floating tab bar
+    backgroundColor: '#FFFFFF',
+    borderRadius: 999,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: OUTLINE,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    ...SOFT_SHADOW,
+  },
+  bulkBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    marginTop: 5,
+  },
+  bulkPrimary: { backgroundColor: ACCENT_BLUE },
+  bulkNeutral: { backgroundColor: NEUTRAL },
+  bulkPrimaryText: { color: '#FFFFFF', fontWeight: '800' },
+  bulkNeutralText: { color: '#FFFFFF', fontWeight: '800' },
 
   /* Popover menu (no dim overlay) */
   menuContainer: {

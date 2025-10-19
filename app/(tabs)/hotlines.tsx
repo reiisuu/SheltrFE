@@ -15,7 +15,7 @@ const EXTRA_CUSHION = 20;
 const BOTTOM_CLEARANCE = TABBAR_HEIGHT + TABBAR_BOTTOM_MARGIN + EXTRA_CUSHION;
 
 /* -------------------------------- Helpers -------------------------------- */
-const telHref = (raw) => {
+const telHref = (raw: string) => {
   const digits = (raw || '').replace(/[^\d+]/g, '');
   if (/^0\d{7,}$/.test(digits)) return `tel:+63${digits.slice(1)}`;
   if (/^[2-9]\d{6,}$/.test(digits)) return `tel:+632${digits}`;
@@ -24,7 +24,8 @@ const telHref = (raw) => {
   return `tel:${digits}`;
 };
 
-function Pill({ label, active, onPress }) {
+type PillProps = { label: string; active: boolean; onPress: () => void };
+function Pill({ label, active, onPress }: PillProps) {
   return (
     <Pressable
       onPress={onPress}
@@ -40,11 +41,12 @@ function Pill({ label, active, onPress }) {
   );
 }
 
-function PhoneLink({ number, label }) {
+type PhoneLinkProps = { number: string; label: string };
+function PhoneLink({ number, label }: PhoneLinkProps) {
   return (
     <View style={styles.phoneRow}>
       <ThemedText style={styles.phoneLabel}>{label || ''}</ThemedText>
-      <ExternalLink href={telHref(number)}>
+  <ExternalLink href={telHref(number) as any}>
         <ThemedText style={styles.phoneNumber}>{number}</ThemedText>
       </ExternalLink>
     </View>
@@ -158,7 +160,7 @@ export default function HotlinesScreen() {
             </View>
             <View style={styles.bannerRight}>
               <IconSymbol name="phone.fill" size={18} color="#0B5AA2" />
-              <ExternalLink href={telHref('911')}>
+              <ExternalLink href={telHref('911') as any}>
                 <ThemedText style={styles.bannerNumber}>911</ThemedText>
               </ExternalLink>
             </View>
@@ -175,7 +177,7 @@ export default function HotlinesScreen() {
                       {item.label ? (
                         <ThemedText style={styles.itemLabel}>• {item.label} </ThemedText>
                       ) : null}
-                      <ExternalLink href={telHref(item.number)}>
+                      <ExternalLink href={telHref(item.number) as any}>
                         <ThemedText style={styles.itemNumber}>{item.number}</ThemedText>
                       </ExternalLink>
                     </View>
@@ -191,7 +193,7 @@ export default function HotlinesScreen() {
                   {group.items.map((item, i) => (
                     <View key={i} style={styles.cardItem}>
                       <ThemedText style={styles.itemLabel}>• {item.label} </ThemedText>
-                      <ExternalLink href={telHref(item.number)}>
+                      <ExternalLink href={telHref(item.number) as any}>
                         <ThemedText style={styles.itemNumber}>{item.number}</ThemedText>
                       </ExternalLink>
                     </View>

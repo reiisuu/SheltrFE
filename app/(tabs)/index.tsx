@@ -23,7 +23,7 @@ import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 
 /* ----------------- Map HTML ----------------- */
-function makeMapHTML(user) {
+function makeMapHTML(user: { lat: number; lon: number } | null) {
   const lat = user?.lat ?? 14.5995;
   const lon = user?.lon ?? 120.9842;
   return `<!DOCTYPE html><html><head>
@@ -107,7 +107,14 @@ function HeaderCard() {
 }
 
 /* ----------------- Weather Card ----------------- */
-function WeatherCard({ dateTime, temp, humidity, rain, loading }) {
+type WeatherCardProps = {
+  dateTime: string;
+  temp: number | string;
+  humidity: string | number;
+  rain: string | number;
+  loading: boolean;
+};
+function WeatherCard({ dateTime, temp, humidity, rain, loading }: WeatherCardProps) {
   return (
     <ThemedView
       style={[styles.card, COMPACT && { marginTop: 10, paddingVertical: 16 }]}
@@ -175,9 +182,9 @@ function WeatherCard({ dateTime, temp, humidity, rain, loading }) {
 
 /* ----------------- Main Screen ----------------- */
 export default function HomeScreen() {
-  const webRef = useRef(null);
-  const [coords, setCoords] = useState(null);
-  const [wx, setWx] = useState({
+  const webRef = useRef<any>(null);
+  const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
+  const [wx, setWx] = useState<{ temperature: number | null; humidity: number | null; precipitation: number | null }>({
     temperature: null,
     humidity: null,
     precipitation: null,
@@ -238,7 +245,7 @@ export default function HomeScreen() {
         lat: coords.lat,
         lon: coords.lon,
       })}); true;`;
-      webRef.current.injectJavaScript(js);
+      webRef.current?.injectJavaScript?.(js);
     }
   };
 

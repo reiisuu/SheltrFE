@@ -16,6 +16,10 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import type { LocationObject } from 'expo-location';
+
+type EvacCenter = { id: string; name: string; latitude: number; longitude: number; capacity?: number };
+type FloodZone = { id: string; riskLevel: 'high' | 'moderate' | 'safe' | string; coordinates: number[][] };
 
 /* ------------------------------ Data ------------------------------ */
 const EVACUATION_CENTERS = [
@@ -33,11 +37,11 @@ const FLOOD_ZONES = [
 
 /* ----------------------------- Icon bridge ----------------------------- */
 // Use IconSymbol on iOS; Ionicons fallback on Android.
-function AppIcon({ name, size, color }) {
+function AppIcon({ name, size = 18, color = '#000' }: { name: string; size?: number; color?: string }) {
   if (Platform.OS === 'ios') {
-    return <IconSymbol name={name} size={size} color={color} />;
+    return <IconSymbol name={name as any} size={size as any} color={color as any} />;
   }
-  const map = {
+  const map: Record<string, string> = {
     'chevron.left': 'chevron-back',
     'bell.fill': 'notifications',
     'magnifyingglass': 'search',
@@ -46,11 +50,16 @@ function AppIcon({ name, size, color }) {
     'house.fill': 'home',
     'plus': 'add',
   };
-  return <Ionicons name={map[name]} size={size} color={color} />;
+  return <Ionicons name={(map[name] || name) as any} size={size as any} color={color as any} />;
 }
 
 /* ----------------------------- Map HTML ----------------------------- */
-const generateMapHTML = (centers, floodZones, userLocation, selectedCenter) => `<!DOCTYPE html>
+const generateMapHTML = (
+  centers: EvacCenter[],
+  floodZones: FloodZone[],
+  userLocation: { lat: number; lng: number } | null,
+  selectedCenter: EvacCenter | null,
+) => `<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
@@ -98,7 +107,7 @@ const generateMapHTML = (centers, floodZones, userLocation, selectedCenter) => `
 </body></html>`;
 
 /* ----------------------------- LegendItem ----------------------------- */
-function LegendItem({ color, label }) {
+function LegendItem({ color, label }: { color: string; label: string }) {
   return (
     <View style={styles.legendItem}>
       <View style={[styles.legendColor, { backgroundColor: color }]} />
@@ -111,10 +120,10 @@ function LegendItem({ color, label }) {
 export default function MapScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const webViewRef = useRef(null);
+  const webViewRef = useRef<any>(null);
 
-  const [location, setLocation] = useState(null);
-  const [selectedCenter, setSelectedCenter] = useState(null);
+  const [location, setLocation] = useState<LocationObject | null>(null);
+  const [selectedCenter, setSelectedCenter] = useState<EvacCenter | null>(null);
   const [showLegend, setShowLegend] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [query, setQuery] = useState('');
@@ -130,15 +139,15 @@ export default function MapScreen() {
     })();
   }, []);
 
-  const sendToWeb = (data) => {
+  const sendToWeb = (data: any) => {
     const js = `window.fromRN && window.fromRN(${JSON.stringify(data)}); true;`;
-    webViewRef.current?.injectJavaScript(js);
+    webViewRef.current?.injectJavaScript?.(js);
   };
 
   const handleZoomIn = () => sendToWeb({ type: 'zoomIn' });
   const handleZoomOut = () => sendToWeb({ type: 'zoomOut' });
   const toggleLegend = () => setShowLegend(prev => !prev);
-  const handleCenter = (lat, lng) => sendToWeb({ type: 'centerMap', lat, lng, zoom: 15 });
+  const handleCenter = (lat: number, lng: number) => sendToWeb({ type: 'centerMap', lat, lng, zoom: 15 });
 
   const userLoc = location ? { lat: location.coords.latitude, lng: location.coords.longitude } : null;
   const mapHTML = generateMapHTML(EVACUATION_CENTERS, FLOOD_ZONES, userLoc, selectedCenter);
