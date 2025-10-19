@@ -8,9 +8,14 @@ import { ExternalLink } from '@/components/external-link';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Fonts } from '@/constants/theme';
 
-/* -------------------------------- Helpers -------------------------------- */
+/* ------------------------------ Bottom clearance ------------------------------ */
+const TABBAR_HEIGHT = 50;
+const TABBAR_BOTTOM_MARGIN = 20;
+const EXTRA_CUSHION = 20;
+const BOTTOM_CLEARANCE = TABBAR_HEIGHT + TABBAR_BOTTOM_MARGIN + EXTRA_CUSHION;
 
-const telHref = (raw: string): string => {
+/* -------------------------------- Helpers -------------------------------- */
+const telHref = (raw) => {
   const digits = (raw || '').replace(/[^\d+]/g, '');
   if (/^0\d{7,}$/.test(digits)) return `tel:+63${digits.slice(1)}`;
   if (/^[2-9]\d{6,}$/.test(digits)) return `tel:+632${digits}`;
@@ -19,13 +24,7 @@ const telHref = (raw: string): string => {
   return `tel:${digits}`;
 };
 
-interface PillProps {
-  label: string;
-  active: boolean;
-  onPress: () => void;
-}
-
-function Pill({ label, active, onPress }: PillProps) {
+function Pill({ label, active, onPress }) {
   return (
     <Pressable
       onPress={onPress}
@@ -41,16 +40,11 @@ function Pill({ label, active, onPress }: PillProps) {
   );
 }
 
-interface PhoneLinkProps {
-  number: string;
-  label?: string;
-}
-
-function PhoneLink({ number, label }: PhoneLinkProps) {
+function PhoneLink({ number, label }) {
   return (
     <View style={styles.phoneRow}>
       <ThemedText style={styles.phoneLabel}>{label || ''}</ThemedText>
-      <ExternalLink href={telHref(number) as any}>
+      <ExternalLink href={telHref(number)}>
         <ThemedText style={styles.phoneNumber}>{number}</ThemedText>
       </ExternalLink>
     </View>
@@ -58,7 +52,6 @@ function PhoneLink({ number, label }: PhoneLinkProps) {
 }
 
 /* --------------------------------- Data ---------------------------------- */
-
 const NATIONAL_CARDS = [
   {
     title: 'Philippine National Police (PNP)',
@@ -121,7 +114,7 @@ const LOCAL_GROUPS = [
       { label: 'Pasig City DRRMO Emergency:', number: '8643-0000' },
       { label: 'Fire:', number: '8641-2815' },
       { label: 'Police:', number: '8477-7953' },
-      { label: 'Children\'s Hospital:', number: '8643-2222' },
+      { label: "Children's Hospital:", number: '8643-2222' },
       { label: 'General Hospital:', number: '8643-3333, 8642-7379' },
     ],
   },
@@ -135,16 +128,21 @@ const LOCAL_GROUPS = [
 ];
 
 /* -------------------------------- Screen --------------------------------- */
-
 export default function HotlinesScreen() {
   const [tab, setTab] = useState('national');
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: BOTTOM_CLEARANCE }}
+      >
         <View style={styles.content}>
           {/* Header */}
-          <ThemedText style={styles.title}>Emergency Hotlines</ThemedText>
+          <View style={styles.titleWrap}>
+            <ThemedText style={styles.title}>Emergency Hotlines</ThemedText>
+          </View>
 
           {/* Tabs */}
           <View style={styles.tabsContainer}>
@@ -160,7 +158,7 @@ export default function HotlinesScreen() {
             </View>
             <View style={styles.bannerRight}>
               <IconSymbol name="phone.fill" size={18} color="#0B5AA2" />
-              <ExternalLink href={telHref('911') as any}>
+              <ExternalLink href={telHref('911')}>
                 <ThemedText style={styles.bannerNumber}>911</ThemedText>
               </ExternalLink>
             </View>
@@ -169,13 +167,15 @@ export default function HotlinesScreen() {
           {/* Cards */}
           {tab === 'national' ? (
             <View style={styles.cardsContainer}>
-              {NATIONAL_CARDS.map((card, idx) => (
+              {NATIONAL_CARDS.map((card) => (
                 <View key={card.title} style={styles.card}>
                   <ThemedText style={styles.cardTitle}>{card.title}</ThemedText>
                   {card.items.map((item, i) => (
                     <View key={i} style={styles.cardItem}>
-                      {item.label && <ThemedText style={styles.itemLabel}>• {item.label} </ThemedText>}
-                      <ExternalLink href={telHref(item.number) as any}>
+                      {item.label ? (
+                        <ThemedText style={styles.itemLabel}>• {item.label} </ThemedText>
+                      ) : null}
+                      <ExternalLink href={telHref(item.number)}>
                         <ThemedText style={styles.itemNumber}>{item.number}</ThemedText>
                       </ExternalLink>
                     </View>
@@ -191,7 +191,7 @@ export default function HotlinesScreen() {
                   {group.items.map((item, i) => (
                     <View key={i} style={styles.cardItem}>
                       <ThemedText style={styles.itemLabel}>• {item.label} </ThemedText>
-                      <ExternalLink href={telHref(item.number) as any}>
+                      <ExternalLink href={telHref(item.number)}>
                         <ThemedText style={styles.itemNumber}>{item.number}</ThemedText>
                       </ExternalLink>
                     </View>
@@ -201,7 +201,7 @@ export default function HotlinesScreen() {
             </View>
           )}
 
-          <View style={{ height: 40 }} />
+          <View style={{ height: 8 }} />
         </View>
       </ScrollView>
     </View>
@@ -209,7 +209,6 @@ export default function HotlinesScreen() {
 }
 
 /* -------------------------------- Styles --------------------------------- */
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -222,14 +221,23 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingHorizontal: 20,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#0B3D5B',
+
+  /* Enhanced Header */
+  titleWrap: {
+    paddingVertical: 14,
+    paddingHorizontal: 14,
     marginBottom: 20,
+  },
+  title: {
+    fontSize: 26,
+    lineHeight: 35,
+    fontWeight: '800',
+    color: '#0B3D5B',
+    textAlign: 'center',
+    letterSpacing: 0.2,
     fontFamily: Fonts.rounded,
   },
-  
+
   // Tabs
   tabsContainer: {
     flexDirection: 'row',
@@ -343,7 +351,7 @@ const styles = StyleSheet.create({
     color: '#0B3D5B',
     lineHeight: 20,
   },
-  
+
   phoneRow: {
     flexDirection: 'row',
     alignItems: 'center',
