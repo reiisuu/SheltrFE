@@ -1,25 +1,22 @@
-import React, { useState, useEffect, useRef } from 'react';
+// app/(tabs)/map.tsx
+import { Ionicons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  StyleSheet,
-  View,
-  Pressable,
-  TextInput,
-  ScrollView,
   Modal,
   Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
-import * as Location from 'expo-location';
-import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 
 import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import type { LocationObject } from 'expo-location';
-
-type EvacCenter = { id: string; name: string; latitude: number; longitude: number; capacity?: number };
-type FloodZone = { id: string; riskLevel: 'high' | 'moderate' | 'safe' | string; coordinates: number[][] };
 
 /* ------------------------------ Data ------------------------------ */
 const EVACUATION_CENTERS = [
@@ -37,11 +34,11 @@ const FLOOD_ZONES = [
 
 /* ----------------------------- Icon bridge ----------------------------- */
 // Use IconSymbol on iOS; Ionicons fallback on Android.
-function AppIcon({ name, size = 18, color = '#000' }: { name: string; size?: number; color?: string }) {
+function AppIcon({ name, size, color }: { name: string; size: number; color: string }) {
   if (Platform.OS === 'ios') {
-    return <IconSymbol name={name as any} size={size as any} color={color as any} />;
+    return <IconSymbol name={name} size={size} color={color} />;
   }
-  const map: Record<string, string> = {
+  const map: Record<string, any> = {
     'chevron.left': 'chevron-back',
     'bell.fill': 'notifications',
     'magnifyingglass': 'search',
@@ -49,43 +46,48 @@ function AppIcon({ name, size = 18, color = '#000' }: { name: string; size?: num
     'paperplane.fill': 'send',
     'house.fill': 'home',
     'plus': 'add',
+    'mappin.and.ellipse': 'location',
   };
-  return <Ionicons name={(map[name] || name) as any} size={size as any} color={color as any} />;
+  return <Ionicons name={map[name] ?? name} size={size} color={color} />;
 }
 
 /* ----------------------------- Map HTML ----------------------------- */
 const generateMapHTML = (
-  centers: EvacCenter[],
-  floodZones: FloodZone[],
-  userLocation: { lat: number; lng: number } | null,
-  selectedCenter: EvacCenter | null,
+  centers: typeof EVACUATION_CENTERS,
+  floodZones: typeof FLOOD_ZONES,
+  userLocation: { lat: number; lng: number } | null
 ) => `<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css"/>
 <style>
   html,body,#map{height:100%;margin:0}
   .custom-marker{background:#0B5AA2;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.3)}
   .user-marker{background:#3B82F6;width:16px;height:16px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 4px rgba(59,130,246,.3)}
   .popup-title{font-size:14px;font-weight:700;color:#0B3D5B;margin-bottom:6px}
   .popup-info{font-size:12px;color:#6B7280}
+  .leaflet-routing-container{display:none}
 </style>
 </head><body>
 <div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
 <script>
   const map = L.map('map',{zoomControl:false,attributionControl:false})
     .setView([${userLocation ? userLocation.lat : 14.5378},${userLocation ? userLocation.lng : 121.0475}],14);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
 
+  // Flood polylines
   const riskColors = { safe:'#10B981', moderate:'#F59E0B', high:'#EF4444' };
   (${JSON.stringify(floodZones)}).forEach(z=>{
     const latlngs = z.coordinates.map(c=>[c[1],c[0]]);
     L.polyline(latlngs,{color:riskColors[z.riskLevel],weight:8,opacity:.7,lineCap:'round'}).addTo(map);
   });
 
+  // Centers
   (${JSON.stringify(centers)}).forEach(c=>{
     const m=L.marker([c.latitude,c.longitude],{
       icon:L.divIcon({className:'custom-marker',html:'🏠',iconSize:[36,36],iconAnchor:[18,18]})
@@ -94,14 +96,71 @@ const generateMapHTML = (
     m.on('click',()=>window.ReactNativeWebView.postMessage(JSON.stringify({type:'centerSelected',center:c})));
   });
 
-  ${userLocation ? `L.marker([${userLocation.lat},${userLocation.lng}],{icon:L.divIcon({className:'user-marker',iconSize:[16,16],iconAnchor:[8,8]})}).addTo(map);` : ''}
+  // User marker
+  const user = ${userLocation ? JSON.stringify(userLocation) : 'null'};
+  if (user){
+    L.marker([user.lat,user.lng],{icon:L.divIcon({className:'user-marker',iconSize:[16,16],iconAnchor:[8,8]})}).addTo(map);
+  }
 
-  ${selectedCenter && userLocation ? `L.polyline([[${userLocation.lat},${userLocation.lng}],[${selectedCenter.latitude},${selectedCenter.longitude}]],{color:'#0B5AA2',weight:4,opacity:.9,dashArray:'10, 10'}).addTo(map);` : ''}
+  // Routing (Leaflet Routing Machine)
+  let routing = null;
+
+  function routerFor(profile){
+    // Switch OSRM servers by profile to avoid straight-line fallbacks
+    if(profile === 'cycling') return L.Routing.osrmv1({
+      serviceUrl: 'https://router.openstreetmap.de/routed-bike/route/v1',
+      profile: 'bike'
+    });
+    if(profile === 'foot') return L.Routing.osrmv1({
+      serviceUrl: 'https://router.openstreetmap.de/routed-foot/route/v1',
+      profile: 'foot'
+    });
+    // driving default
+    return L.Routing.osrmv1({
+      serviceUrl: 'https://router.project-osrm.org/route/v1',
+      profile: 'car'
+    });
+  }
+
+  function ensureRouting(profile){
+    if(!routing){
+      routing = L.Routing.control({
+        waypoints: [],
+        router: routerFor(profile || 'driving'),
+        routeWhileDragging: false,
+        addWaypoints: false,
+        draggableWaypoints: false,
+        show: false,
+        fitSelectedRoutes: true,
+        lineOptions: {
+          styles: [{ color:'#16A34A', opacity:0.95, weight:5 }]
+        }
+      }).addTo(map);
+    }else{
+      routing.options.router = routerFor(profile || 'driving');
+    }
+  }
+
+  function routeTo(destLat, destLng, profile){
+    if(!user) return;
+    ensureRouting(profile);
+    routing.setWaypoints([
+      L.latLng(user.lat, user.lng),
+      L.latLng(destLat, destLng)
+    ]);
+  }
+
+  function clearRoute(){
+    if(routing){ routing.setWaypoints([]); }
+  }
 
   window.fromRN = function(d){
+    if(!d) return;
     if(d.type==='zoomIn') map.zoomIn();
     if(d.type==='zoomOut') map.zoomOut();
-    if(d.type==='centerMap' && d.lat && d.lng) map.setView([d.lat,d.lng],d.zoom||15,{animate:true});
+    if(d.type==='centerMap' && d.lat && d.lng) map.setView([d.lat,d.lng], d.zoom||15,{animate:true});
+    if(d.type==='routeTo' && d.lat && d.lng) routeTo(d.lat, d.lng, d.profile||'driving'); // default driving
+    if(d.type==='clearRoute') clearRoute();
   };
 </script>
 </body></html>`;
@@ -120,10 +179,10 @@ function LegendItem({ color, label }: { color: string; label: string }) {
 export default function MapScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const webViewRef = useRef<any>(null);
+  const webViewRef = useRef<WebView>(null);
 
-  const [location, setLocation] = useState<LocationObject | null>(null);
-  const [selectedCenter, setSelectedCenter] = useState<EvacCenter | null>(null);
+  const [location, setLocation] = useState<Location.LocationObject | null>(null);
+  const [selectedCenter, setSelectedCenter] = useState<typeof EVACUATION_CENTERS[0] | null>(null);
   const [showLegend, setShowLegend] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [query, setQuery] = useState('');
@@ -141,16 +200,22 @@ export default function MapScreen() {
 
   const sendToWeb = (data: any) => {
     const js = `window.fromRN && window.fromRN(${JSON.stringify(data)}); true;`;
-    webViewRef.current?.injectJavaScript?.(js);
+    webViewRef.current?.injectJavaScript(js);
   };
 
   const handleZoomIn = () => sendToWeb({ type: 'zoomIn' });
   const handleZoomOut = () => sendToWeb({ type: 'zoomOut' });
-  const toggleLegend = () => setShowLegend(prev => !prev);
+  const toggleLegend = () => setShowLegend((prev) => !prev);
   const handleCenter = (lat: number, lng: number) => sendToWeb({ type: 'centerMap', lat, lng, zoom: 15 });
 
+  // Route to center (default to 'driving' to avoid straight line fallback)
+  const handleRouteTo = (lat: number, lng: number, profile: 'driving' | 'foot' | 'cycling' = 'driving') => {
+    if (!location) return;
+    sendToWeb({ type: 'routeTo', lat, lng, profile });
+  };
+
   const userLoc = location ? { lat: location.coords.latitude, lng: location.coords.longitude } : null;
-  const mapHTML = generateMapHTML(EVACUATION_CENTERS, FLOOD_ZONES, userLoc, selectedCenter);
+  const mapHTML = generateMapHTML(EVACUATION_CENTERS, FLOOD_ZONES, userLoc);
 
   const overlaySuggestions = EVACUATION_CENTERS.filter(c =>
     c.name.toLowerCase().includes(query.toLowerCase())
@@ -168,8 +233,11 @@ export default function MapScreen() {
         scrollEnabled={false}
         onMessage={(e) => {
           try {
-            const msg = JSON.parse(e.nativeEvent.data);
-            if (msg.type === 'centerSelected' && msg.center) setSelectedCenter(msg.center);
+            const msg = JSON.parse((e.nativeEvent as any).data);
+            if (msg.type === 'centerSelected' && msg.center) {
+              setSelectedCenter(msg.center);
+              handleRouteTo(msg.center.latitude, msg.center.longitude, 'driving'); // pick 'foot' or 'cycling' if you want
+            }
           } catch {}
         }}
       />
@@ -208,9 +276,6 @@ export default function MapScreen() {
           accessibilityLabel="Open notifications"
         >
           <AppIcon name="bell.fill" size={18} color="#0B3D5B" />
-          <View style={styles.badge}>
-            <ThemedText style={styles.badgeText}>2</ThemedText>
-          </View>
         </Pressable>
       </View>
 
@@ -247,6 +312,7 @@ export default function MapScreen() {
                   onPress={() => {
                     setSelectedCenter(c);
                     handleCenter(c.latitude, c.longitude);
+                    handleRouteTo(c.latitude, c.longitude, 'driving'); // choose 'foot' or 'cycling' if needed
                     setShowSuggestions(false);
                     setQuery(c.name);
                   }}
@@ -283,6 +349,7 @@ export default function MapScreen() {
                 onPress={() => {
                   setSelectedCenter(center);
                   handleCenter(center.latitude, center.longitude);
+                  handleRouteTo(center.latitude, center.longitude, 'driving'); // switch to 'foot'/'cycling' if desired
                   setShowSearchModal(false);
                 }}
               >
